@@ -4,6 +4,7 @@ import Element exposing (..)
 import Element.Font exposing (..)
 import Ucb.Main.View.Reference exposing (viewReference)
 import Unison.Referent exposing (..)
+import Yaks.PrettyPrint as PP
 
 
 viewReferent :
@@ -11,7 +12,7 @@ viewReferent :
     , take : Maybe Int
     }
     -> Referent
-    -> Element message
+    -> PP.Doc msg
 viewReferent opts referent =
     case referent of
         Ref reference ->

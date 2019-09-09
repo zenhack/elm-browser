@@ -26,6 +26,7 @@ import Unison.Symbol exposing (..)
 import Unison.Term exposing (..)
 import Unison.Type exposing (..)
 import Unison.Util.Relation exposing (..)
+import Yaks.PrettyPrint as PP
 
 
 {-| TODO(elliott) pass in this branch's path
@@ -237,7 +238,10 @@ viewBranchTerm2 view reference name _ =
                                 [ codeFont
                                 , paddingEach { bottom = 5, left = 10, right = 0, top = 5 }
                                 ]
-                                (viewTerm view term)
+                                (viewTerm view term
+                                    |> PP.toHtml
+                                    |> html
+                                )
                         )
                         (view.getTerm id)
 

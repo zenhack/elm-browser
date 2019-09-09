@@ -17,6 +17,7 @@ import Unison.Reference exposing (..)
 import Unison.Symbol exposing (..)
 import Unison.Type exposing (..)
 import Util.HashSet as HashSet
+import Yaks.PrettyPrint as PP
 
 
 viewType :
@@ -114,6 +115,8 @@ viewTypeRef view reference =
                 , take = Just 7
                 }
                 reference
+                |> PP.toHtml
+                |> html
 
         head : Branch0
         head =

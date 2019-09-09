@@ -10,7 +10,6 @@ import Ucb.Main.View.Referent exposing (viewReferent)
 import Ucb.Unison.Name exposing (..)
 import Ucb.Unison.NameDict exposing (..)
 import Ucb.Unison.ReferentSet exposing (..)
-import Ucb.Util.Pretty exposing (..)
 import Unison.Codebase.Branch exposing (..)
 import Unison.Codebase.Causal exposing (..)
 import Unison.ConstructorType exposing (..)
@@ -21,6 +20,7 @@ import Unison.Symbol exposing (..)
 import Unison.Term exposing (..)
 import Unison.Type exposing (..)
 import Word64 exposing (..)
+import Yaks.PrettyPrint as PP
 
 
 type alias Env =
@@ -43,7 +43,7 @@ type InfixContext
 viewTerm :
     { r | head : Branch }
     -> Term Symbol
-    -> Element message
+    -> PP.Doc msg
 viewTerm view =
     viewTerm2
         view
@@ -57,16 +57,16 @@ viewTerm2 :
     { r | head : Branch }
     -> Env
     -> Term Symbol
-    -> Element message
+    -> PP.Doc msg
 viewTerm2 view env { out } =
     case out of
         TermAbs var term ->
-            row []
-                [ text "("
+            PP.concat
+                [ PP.text "("
                 , viewTermVar var
-                , text " -> "
+                , PP.text " -> "
                 , viewTerm view term
-                , text ")"
+                , PP.text ")"
                 ]
 
         TermCycle term ->
@@ -85,7 +85,7 @@ viewTerm2 view env { out } =
             viewTermAnn view env term type_
 
         TermTm (TermBlank blank) ->
-            text "(not implemented: TermBlank)"
+            PP.text "(not implemented: TermBlank)"
 
         TermTm (TermBoolean b) ->
             viewTermBoolean b
@@ -112,13 +112,13 @@ viewTerm2 view env { out } =
             viewTermLam view env term
 
         TermTm (TermLet _ _ _) ->
-            text "(not implemented: TermLet)"
+            PP.text "(not implemented: TermLet)"
 
         TermTm (TermLetRec _ _ _) ->
-            text "(not implemented: TermLetRec)"
+            PP.text "(not implemented: TermLetRec)"
 
         TermTm (TermMatch _ _) ->
-            text "(not implemented: TermMatch)"
+            PP.text "(not implemented: TermMatch)"
 
         TermTm (TermNat n) ->
             viewTermNat n
@@ -136,7 +136,7 @@ viewTerm2 view env { out } =
             viewTermSequence view env terms
 
         TermTm (TermText s) ->
-            text "(not implemented: TermText)"
+            PP.text "(not implemented: TermText)"
 
 
 {-| Should be the same as viewTermOr
@@ -146,7 +146,7 @@ viewTermAnd :
     -> Env
     -> Term Symbol
     -> Term Symbol
-    -> Element message
+    -> PP.Doc msg
 viewTermAnd view env t1 t2 =
     let
         env2 : Env
@@ -156,15 +156,12 @@ viewTermAnd view env t1 t2 =
             , infixContext = NonInfix
             }
     in
-    ppParen (env.precedence >= 10)
-        (column []
-            [ text "and"
-            , row []
-                [ text "  "
-                , column []
-                    [ viewTerm2 view env2 t1
-                    , viewTerm2 view env2 t2
-                    ]
+    PP.parensIf (env.precedence >= 10)
+        (PP.lines
+            [ PP.text "and"
+            , PP.indent 2 <| PP.lines
+                [ viewTerm2 view env2 t1
+                , viewTerm2 view env2 t2
                 ]
             ]
         )
@@ -175,7 +172,7 @@ viewTermAnn :
     -> Env
     -> Term Symbol
     -> Type Symbol
-    -> Element message
+    -> PP.Doc msg
 viewTermAnn view env term _ =
     viewTerm2 view env term
 
@@ -185,13 +182,13 @@ viewTermApp :
     -> Env
     -> Term Symbol
     -> Term Symbol
-    -> Element message
+    -> PP.Doc msg
 viewTermApp view env t1 t2 =
     case termUnApps t1 t2 of
         ( f, xs ) ->
-            ppParen
+            PP.parensIf
                 (env.precedence >= 10)
-                (row []
+                (PP.words
                     ((f :: xs)
                         |> List.map
                             (viewTerm2
@@ -201,16 +198,15 @@ viewTermApp view env t1 t2 =
                                 , infixContext = NonInfix
                                 }
                             )
-                        |> List.intersperse (text " ")
                     )
                 )
 
 
 viewTermBoolean :
     Bool
-    -> Element message
+    -> PP.Doc msg
 viewTermBoolean b =
-    text
+    PP.text
         (if b then
             "true"
 
@@ -221,25 +217,25 @@ viewTermBoolean b =
 
 viewTermChar :
     Char
-    -> Element message
+    -> PP.Doc msg
 viewTermChar c =
-    text ("'" ++ String.fromChar c ++ "'")
+    PP.text ("'" ++ String.fromChar c ++ "'")
 
 
 viewTermConstructor :
     { r | head : Branch }
     -> Reference
     -> Int
-    -> Element message
+    -> PP.Doc msg
 viewTermConstructor view reference n =
     viewReferent_ view (Con reference n Data)
 
 
 viewTermFloat :
     Float
-    -> Element message
+    -> PP.Doc msg
 viewTermFloat n =
-    text (String.fromFloat n)
+    PP.text (String.fromFloat n)
 
 
 viewTermHandle :
@@ -247,12 +243,12 @@ viewTermHandle :
     -> Env
     -> Term Symbol
     -> Term Symbol
-    -> Element message
+    -> PP.Doc msg
 viewTermHandle view env t1 t2 =
-    ppParen (env.precedence >= 2)
-        (column []
-            [ row []
-                [ text "handle "
+    PP.parensIf (env.precedence >= 2)
+        (PP.lines
+            [ PP.words
+                [ PP.text "handle"
                 , viewTerm2
                     view
                     { precedence = 2
@@ -260,18 +256,16 @@ viewTermHandle view env t1 t2 =
                     , infixContext = NonInfix
                     }
                     t1
-                , text "in"
+                , PP.text "in"
                 ]
-            , row []
-                [ text "  "
-                , viewTerm2
+            , PP.indent 2 <|
+                viewTerm2
                     view
                     { precedence = 2
                     , blockContext = Block
                     , infixContext = NonInfix
                     }
                     t2
-                ]
             ]
         )
 
@@ -282,12 +276,12 @@ viewTermIf :
     -> Term Symbol
     -> Term Symbol
     -> Term Symbol
-    -> Element message
+    -> PP.Doc msg
 viewTermIf view env t1 t2 t3 =
-    ppParen (env.precedence >= 2)
-        (column []
-            [ row []
-                [ text "if "
+    PP.parensIf (env.precedence >= 2)
+        (PP.lines
+            [ PP.words
+                [ PP.text "if"
                 , viewTerm2
                     view
                     { precedence = 2
@@ -295,84 +289,81 @@ viewTermIf view env t1 t2 t3 =
                     , infixContext = NonInfix
                     }
                     t1
-                , text " then"
+                , PP.text "then"
                 ]
-            , row []
-                [ text "  "
-                , viewTerm2
+            , PP.indent 2 <|
+                viewTerm2
                     view
                     { precedence = 0
                     , blockContext = Block
                     , infixContext = NonInfix
                     }
                     t2
-                ]
-            , text "else"
-            , row []
-                [ text "  "
-                , viewTerm2
+            , PP.text "else"
+            , PP.indent 2 <|
+                viewTerm2
                     view
                     { precedence = 0
                     , blockContext = Block
                     , infixContext = NonInfix
                     }
                     t3
-                ]
             ]
         )
 
 
 viewTermInt :
     Int64
-    -> Element message
+    -> PP.Doc msg
 viewTermInt n =
+    -- FIXME: this will do the wrong thing if the integer is out of the
+    -- safe range.
     let
         n2 : Int
         n2 =
             unsafeInt64ToInt53 n
     in
     if n2 >= 0 then
-        text (String.cons '+' (String.fromInt n2))
+        PP.text (String.cons '+' (String.fromInt n2))
 
     else
-        text (String.fromInt n2)
+        PP.text (String.fromInt n2)
 
 
 viewTermLam :
     { r | head : Branch }
     -> Env
     -> Term Symbol
-    -> Element message
+    -> PP.Doc msg
 viewTermLam view env term =
     case termUnLams term of
         ( vars, body ) ->
-            ppParen (env.precedence >= 3)
-                (column []
-                    [ row []
+            PP.parensIf (env.precedence >= 3)
+                (PP.lines
+                    [ PP.words
                         [ vars
-                            |> List.map (\var -> text (symbolToString var ++ " "))
-                            |> row []
-                        , text "->"
+                            |> List.map (symbolToString >> PP.text)
+                            |> PP.words
+                        , PP.text "->"
                         ]
-                    , row []
-                        [ text "  "
-                        , viewTerm2
+                    , PP.indent 2 <|
+                        viewTerm2
                             view
                             { precedence = 2
                             , blockContext = Block
                             , infixContext = NonInfix
                             }
                             body
-                        ]
                     ]
                 )
 
 
 viewTermNat :
     Word64
-    -> Element message
+    -> PP.Doc msg
 viewTermNat n =
-    text (String.fromInt (unsafeWord64ToInt53 n))
+    -- FIXME: deal with >53 bit integers correctly.
+    PP.text (String.fromInt (unsafeWord64ToInt53 n))
 
 
 {-| Should be the same as viewTermAnd
@@ -382,7 +373,7 @@ viewTermOr :
     -> Env
     -> Term Symbol
     -> Term Symbol
-    -> Element message
+    -> PP.Doc msg
 viewTermOr view env t1 t2 =
     let
         env2 : Env
@@ -392,16 +383,14 @@ viewTermOr view env t1 t2 =
             , infixContext = NonInfix
             }
     in
-    ppParen (env.precedence >= 10)
-        (column []
-            [ text "or"
-            , row []
-                [ text "  "
-                , column []
+    PP.parensIf (env.precedence >= 10)
+        (PP.lines
+            [ PP.text "or"
+            , PP.indent 2 <|
+                PP.lines
                     [ viewTerm2 view env2 t1
                     , viewTerm2 view env2 t2
                     ]
-                ]
             ]
         )
 
@@ -409,7 +398,7 @@ viewTermOr view env t1 t2 =
 viewTermRef :
     { r | head : Branch }
     -> Reference
-    -> Element message
+    -> PP.Doc msg
 viewTermRef view reference =
     viewReferent_ view (Ref reference)
 
@@ -418,7 +407,7 @@ viewTermRequest :
     { r | head : Branch }
     -> Reference
     -> Int
-    -> Element message
+    -> PP.Doc msg
 viewTermRequest view reference n =
     viewReferent_ view (Con reference n Effect)
 
@@ -427,41 +416,39 @@ viewTermSequence :
     { r | head : Branch }
     -> Env
     -> Array (Term Symbol)
-    -> Element message
+    -> PP.Doc msg
 viewTermSequence view env terms =
-    row []
-        [ text "["
-        , row []
-            (terms
-                |> Array.map
-                    (viewTerm2
-                        view
-                        { precedence = 0
-                        , blockContext = Normal
-                        , infixContext = NonInfix
-                        }
-                    )
-                |> Array.toList
-                |> List.intersperse (text ", ")
-            )
-        , text "]"
+    PP.words
+        [ PP.text "["
+        , terms
+            |> Array.map
+                (viewTerm2
+                    view
+                    { precedence = 0
+                    , blockContext = Normal
+                    , infixContext = NonInfix
+                    }
+                )
+            |> Array.toList
+            |> PP.join (PP.text ", ")
+        , PP.text "]"
         ]
 
 
 viewTermVar :
     Symbol
-    -> Element message
+    -> PP.Doc msg
 viewTermVar var =
-    text (symbolToString var)
+    PP.text (symbolToString var)
 
 
 viewReferent_ :
     { r | head : Branch }
     -> Referent
-    -> Element message
+    -> PP.Doc msg
 viewReferent_ view referent =
     let
-        fallback : Element message
+        fallback : PP.Doc msg
         fallback =
             viewReferent
                 { showBuiltin = True
@@ -491,6 +478,6 @@ viewReferent_ view referent =
 viewReferent2 :
     NameDict ReferentSet
     -> Name
-    -> Element message
+    -> PP.Doc msg
 viewReferent2 nameToTerm fullName =
-    text (nameToString (shortenName nameToTerm fullName))
+    PP.text (nameToString (shortenName nameToTerm fullName))
